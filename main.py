@@ -234,7 +234,7 @@ article_fnames = os.listdir("datasets/dev-articles/")
 article_fnames = ["datasets/dev-articles/" + f for f in article_fnames]
 article_ids, start, end = [], [], []
 for path in article_fnames:
-    article_id, spans = predict(model, path)
+    article_id, spans = predict(model, path, embedding)
     for span in spans:
         article_ids.append(article_id)
         start.append(span[0])
@@ -252,7 +252,7 @@ article_fnames = os.listdir("datasets/test-articles/")
 article_fnames = ["datasets/test-articles/" + f for f in article_fnames]
 article_ids, start, end = [], [], []
 for path in article_fnames:
-    article_id, spans = predict(model, path)
+    article_id, spans = predict(model, path, embedding)
     for span in spans:
         article_ids.append(article_id)
         start.append(span[0])

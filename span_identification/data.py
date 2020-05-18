@@ -91,16 +91,6 @@ def label_tokens(path, label_df):
     return lines, token_list, label_list
 
 
-def get_proximity_score(previous_preds):
-    score = 0
-    decay = len(previous_preds)
-    for pred in previous_preds:
-        score += pred / decay
-        decay -= 1
-
-    return score
-
-
 def get_train_dataset(embedding, label_df):
     start_time = time.time()
     train_samples = []
@@ -113,6 +103,7 @@ def get_train_dataset(embedding, label_df):
             torch.stack(get_word_embeddings(lines[0], embedding), dim=1), dim=1
         )
         line_labels = [1 if 1 in labels else 0 for labels in label_list]
+        ratio_prop_lines = line_labels.count(1) / line_labels.count(0)
         for i in range(len(lines)):
             token_embeds = get_word_embeddings(lines[i], embedding)
             assert len(token_embeds) == len(label_list[i])
@@ -125,6 +116,7 @@ def get_train_dataset(embedding, label_df):
                         token_embeds[j],
                         label_list[i][j],
                         line_labels[i],
+                        ratio_prop_lines,
                     ]
                 )
     print("Extracted Embeddings in", time.time() - start_time)
@@ -177,22 +169,7 @@ def getCharSpans(prediction, wordlist):
     return [[charSpans[i], charSpans[i + 1]] for i in range(0, len(charSpans), 2)]
 
 
-def process_preds(line_preds):
-    if len(line_preds) == 1:
-        line_preds[0] = 0
-    else:
-        for i in range(1, len(line_preds) - 1):
-            if (line_preds[i - 1] == 1) & (line_preds[i + 1] == 1):
-                line_preds[i] = 1
-            if (line_preds[i - 1] == 0) & (line_preds[i + 1] == 0):
-                line_preds[i] = 0
-        if (line_preds[0] == 1) & (line_preds[1] == 0):
-            line_preds[0] = 0
-        if (line_preds[-1] == 1) & (line_preds[-2] == 0):
-            line_preds[-1] = 0
-
-
-def predict(model, path):
+def predict(model, path, embedding):
     article_id = int(path[-13:-4])
     article_spans = []
     model.eval()
@@ -215,13 +192,12 @@ def predict(model, path):
         line_embed = torch.mean(torch.stack(token_embeds, dim=1), dim=1)
         with torch.no_grad():
             for j in range(len(token_embeds)):
-                out_line, out_token = model(
+                out_title, out_line, out_token = model(
                     title_embed, line_embed, token_embeds[j], predict=True
                 )
-                prediction = round((out_token).item())
+                prediction = round((sig(out_token)).item())
                 line_preds.append(prediction)
 
-        process_preds(line_preds)
         if len(lines[i]) > 1:
             spans = getCharSpans(line_preds, getWordSpans(lines[i]))
             for span in spans:
@@ -246,5 +222,6 @@ class Task1Dataset(Dataset):
         token = self.samples[idx][2]
         token_label = torch.tensor(self.samples[idx][3])
         line_label = torch.tensor(self.samples[idx][4])
+        prop_ratio = torch.tensor(self.samples[idx][5])
 
-        return (title, line, token, token_label, line_label)
+        return (title, line, token, token_label, line_label, prop_ratio)
